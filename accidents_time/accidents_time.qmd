@@ -1,0 +1,52 @@
+---
+title: "Accidents in New York"
+format: html
+editor: visual
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+execute:
+  keep-md: true
+warning: false
+html:
+  code-fold: true
+  code_tools: true
+---
+```{python}
+import polars as pl
+import pins
+from lets_plot import *
+LetsPlot.setup_html()
+
+dat = pl.read_parquet("ny_crashes.parquet")
+
+boroughdat = dat.fill_null("Unknown")
+
+rates = boroughdat\
+.with_columns(
+    pl.col("date_time").dt.truncate("1h").alias("hour_floor"))\
+    .group_by("hour_floor", "BOROUGH")\
+    .agg(
+        pl.sum("NUMBER OF PERSONS INJURED").alias("injured_total"),
+        pl.col("BOROUGH").count().alias("accident_count")
+    )\
+    
+
+
+rates_day = boroughdat\
+.with_columns(
+    pl.col("date_time").dt.truncate("1d").alias("day_floor"))\
+    .group_by("day_floor", "BOROUGH")\
+    .agg(
+        pl.sum("NUMBER OF PERSONS INJURED").alias("injured_total"),
+        pl.col("BOROUGH").count().alias("accident_count")
+    )\
+    .with_columns(pl.col("day_floor").dt.weekday().alias("weekday"))
+
+```
+
+```{python}
+ggplot(rates_day.sort("weekday"), aes(x= "weekday", y = "accident_count")) + geom_boxplot() + facet_wrap(facets= "BOROUGH") + scale_x_discrete()
+```
+
+In this graph, we see the distribution of crashes in all of the boroughs 
+in New York. We see that crashes are highest on Friday, most likely because it's the weekend and that's when the most people are out driving. Sunday's 
+are the days with the least amount of crashes, probably because that's when people aren't out.
